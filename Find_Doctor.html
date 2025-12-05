@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Find Doctor - DocCare</title>
+  <link rel="stylesheet" href="Find_Doctor.css">
+</head>
+<body>
+  <nav>
+    <a class="navbar-brand" href="#">
+      <img src="logo.png" alt="Logo">
+      DocCare
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="Find_Doctor.html" class="active">Find Doctor</a></li>
+      <li><a href="#">About Us</a></li>
+      <li><a href="#">Contact</a></li>
+    </ul>
+    <button class="logout-btn">Logout</button>
+  </nav>
+
+  <section class="find-doctor-section">
+    <h1>FIND DOCTOR</h1>
+
+    <div class="search-container">
+      <input type="checkbox" id="dropdown-toggle" class="dropdown-toggle">
+      <label for="dropdown-toggle" class="dropbtn">+</label>
+
+      <div class="dropdown-content">
+        <div data-option="City Name">🏙️ City Name</div>
+        <div data-option="Symptoms">🤒 Symptoms</div>
+        <div data-option="Specialty">🩺 Specialty</div>
+        <div data-option="Name">👤 Name</div>
+      </div>
+
+      <input type="text" placeholder="Search doctor..." />
+      <button class="search-btn">Search</button>
+    </div>
+
+    <div class="selected-option"></div>
+  </section>
+
+  <!-- Appointment Modal -->
+  <div class="appointment-modal" id="appointmentModal">
+    <div class="appointment-modal-content">
+      <span class="close-modal" id="closeModal">&times;</span>
+      <h2 id="modalDoctorName">Doctor Name</h2>
+      <form id="appointmentForm">
+        <input type="text" name="name" placeholder="Your Name" required />
+        <input type="text" name="contact" placeholder="Contact Number" required />
+        <input type="date" name="date" required />
+        <select name="timeslot" required>
+          <option value="" disabled selected>Select Time Slot</option>
+          <option value="09:00 AM">09:00 AM</option>
+          <option value="11:00 AM">11:00 AM</option>
+          <option value="01:00 PM">01:00 PM</option>
+          <option value="03:00 PM">03:00 PM</option>
+          <option value="05:00 PM">05:00 PM</option>
+        </select>
+        <button type="submit">Book Appointment</button>
+        <p class="success-message" id="successMessage"></p>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const dropdownItems = document.querySelectorAll(".dropdown-content div");
+    const dropdownToggle = document.getElementById("dropdown-toggle");
+    const selectedOptionDisplay = document.querySelector(".selected-option");
+
+    let selectedFilter = "";
+
+    dropdownItems.forEach(item => {
+      item.addEventListener("click", () => {
+        selectedFilter = item.getAttribute("data-option");
+        selectedOptionDisplay.innerHTML = `<p style="color:white; font-size:18px; margin-top:10px;">Selected Filter: <b>${selectedFilter}</b></p>`;
+        dropdownToggle.checked = false;
+      });
+    });
+
+    // Search functionality
+    document.querySelector(".search-btn").addEventListener("click", async () => {
+      const searchValue = document.querySelector('input[type="text"]').value.trim();
+
+      if (!searchValue) {
+        alert("Please enter a search term!");
+        return;
+      }
+
+      const filter = selectedFilter || "All";
+      const response = await fetch(`http://localhost:5000/search?q=${encodeURIComponent(searchValue)}&filter=${encodeURIComponent(filter)}`);
+      const doctors = await response.json();
+
+      const oldResults = document.querySelector(".search-results");
+      if (oldResults) oldResults.remove();
+
+      let resultHTML = "";
+      if (doctors.length === 0) {
+        resultHTML = `<p style='color:white; margin-top:20px;'>No doctors found for "${searchValue}"${selectedFilter ? " in " + selectedFilter : ""}.</p>`;
+      } else {
+        resultHTML = `
+          <div class="search-results-grid">
+            ${doctors.map(doc => `
+              <div class="doctor-card">
+                <button class="book-btn" onclick="openAppointmentModal('${doc.name}')">Book Appointment</button>
+                <h3>${doc.name}</h3>
+                <p><b>Speciality:</b> ${doc.speciality}</p>
+                <p><b>Location:</b> ${doc.location}</p>
+                <p><b>Rating:</b> ⭐ ${doc.rating}</p>
+                <p><b>Contact:</b> ${doc.contact}</p>
+                <p><b>Clinic:</b> ${doc.clinicOrHospitalName}</p>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+
+      const resultDiv = document.createElement("div");
+      resultDiv.classList.add("search-results");
+      resultDiv.innerHTML = resultHTML;
+      selectedOptionDisplay.insertAdjacentElement("afterend", resultDiv);
+    });
+
+    // Appointment modal logic
+    function openAppointmentModal(doctorName) {
+      document.getElementById("modalDoctorName").innerText = doctorName;
+      document.getElementById("appointmentModal").style.display = "flex";
+    }
+
+    document.getElementById("closeModal").addEventListener("click", () => {
+      document.getElementById("appointmentModal").style.display = "none";
+      document.getElementById("successMessage").innerText = "";
+      document.getElementById("appointmentForm").reset();
+    });
+
+    document.getElementById("appointmentForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const doctorName = document.getElementById("modalDoctorName").innerText;
+      const formData = {
+        doctor: doctorName,
+        name: e.target.name.value,
+        contact: e.target.contact.value,
+        date: e.target.date.value,
+        timeslot: e.target.timeslot.value,
+      };
+
+      try {
+        const response = await fetch("http://localhost:5000/appointments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData)
+        });
+
+        const result = await response.json();
+        if(response.ok){
+          document.getElementById("successMessage").innerText = result.message;
+          e.target.reset();
+        } else {
+          document.getElementById("successMessage").innerText = "Failed to book appointment!";
+        }
+      } catch (error) {
+        console.error("❌ Appointment Error:", error);
+        document.getElementById("successMessage").innerText = "Server error. Try again!";
+      }
+    });
+  </script>
+</body>
+</html>
